@@ -41,13 +41,6 @@ boolean CreatePowerShell() {
 	si.hStdInput = InputPipeReadEnd;
 	si.dwFlags |= STARTF_USESTDHANDLES;
 
-	ZeroMemory(&si, sizeof(si));
-	si.cb = sizeof(si);
-	ZeroMemory(&pi, sizeof(pi));
-
-
-
-
 	// Start the child process. 
 	if (!CreateProcess(NULL,   // No module name (use command line)
 		const_cast<LPWSTR>(processName.c_str()),        // Command line
@@ -89,57 +82,36 @@ boolean CreatePipesForInProcess() {
 }
 
 boolean ReadOutputPowershell() {
-	char buffer[4096];
-	DWORD bytesRead;
-	char output[4096] = { 0 };
-	size_t outputLength = 0;
-	// main loop for reading output 
-	for (;;) {
-		ZeroMemory(buffer, sizeof(buffer));
+	char buffer[4096] = { 0 };
+	DWORD bytesRead = 0;
+	//char output[4096] = { 0 };
+	//size_t outputLength = 0;
+	DWORD avil = 0;
 
-		if (!ReadFile(OutputPipeReadEnd, buffer, sizeof(buffer) - 1, &bytesRead, NULL)) {
-			cout << "cant really read from the pipe opsi" + GetLastError() << endl;
-			return false;
+	Sleep(300);
+
+	while ((PeekNamedPipe(OutputPipeReadEnd, NULL, 0, NULL, &avil, NULL)) && avil > 0) {
+		while (avil != 0) {
+			if (!ReadFile(OutputPipeReadEnd, buffer, sizeof(buffer) - 1, &bytesRead, NULL)) {
+				cout << "read file isnt working" << endl;
+				return false;
+			}
+			buffer[bytesRead] = '\0';
+			cout << buffer;
+			avil = avil - bytesRead;
 		}
-		if (bytesRead == 0)
-		{
-			// End of file reached
-			cout << "all the output" << endl;
-			return true;
-		}
-		buffer[bytesRead] = '\0';
-		// Append the output to the accumulated output string
-		if (outputLength + bytesRead < sizeof(output))
-		{
-			strcat_s(output, buffer);
-			outputLength += bytesRead;
-		}
-		// Check if the output contains a complete command result
-		char* commandResult = strstr(output, "\n");
-		while (commandResult != NULL)
-		{
-			// Null-terminate the command result
-			*commandResult = '\0';
-
-			// Display the command result on the console
-			printf("%s\n", output);
-
-			// Move the remaining output to the beginning
-			memmove(output, commandResult + 1, outputLength - (commandResult - output));
-
-			// Update the output length
-			outputLength -= (commandResult - output + 1);
-
-			// Find the next command result
-			commandResult = strstr(output, "\n");
-		}
-
 	}
+	if (avil == 0) {
+		return true;
+	}
+
+	return false;
 }
 
 boolean WriteToPoweShell(string Commend, DWORD* NumberOfBytesWritten) {
 	bool isSucces = false;
-
+	 
+	Commend += "\n";
 	isSucces = WriteFile(
 
 		InputPipeWriteEnd,     // use pipe A
@@ -165,8 +137,6 @@ void _tmain(int argc, TCHAR* argv[])
 	//setup info
 	DWORD NumberOfBytesWritten;
 	ZeroMemory(&NumberOfBytesWritten, sizeof(DWORD));
-
-	SECURITY_ATTRIBUTES sa;
 	//end of setup info
 
 
@@ -196,6 +166,9 @@ void _tmain(int argc, TCHAR* argv[])
 
 	//loop for I/O
 	string UserInput;
+	if (!ReadOutputPowershell()) {
+		cout << "reading isnt workign" << endl;
+	}
 	for (;;) {
 		getline(cin, UserInput);
 		if (UserInput == "exit!") {
@@ -212,6 +185,7 @@ void _tmain(int argc, TCHAR* argv[])
 			break;
 		}
 	}
+	cout << "out loop" << endl;
 
 
 	//closing precudersces
