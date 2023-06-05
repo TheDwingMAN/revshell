@@ -6,7 +6,7 @@
 #include <string>
 #include <sstream>
 
-
+// create all the handles and all the 
 HANDLE OutputPipeReadEnd = NULL;
 HANDLE OutputPipeWriteEnd = NULL;
 HANDLE InputPipeReadEnd = NULL;
@@ -17,14 +17,30 @@ PROCESS_INFORMATION pi;
 
 using namespace std;
 
-// functions signattroes
-boolean CreatPipes(SECURITY_ATTRIBUTES sa);
-void WriteToPip();
-void ReadFromPip();
+
+boolean CreatePipesForInProcess();
+boolean WriteToPoweShell(string Commend, DWORD* NumberOfBytesWritten);
 boolean CreatePowerShell();
+boolean ReadOutputPowershell();
 boolean IsInReg();
 boolean AddToReg();
+void ClosingPorgram();
 
+
+void ClosingPorgram() {
+
+	// Wait until child process exits.
+	WaitForSingleObject(pi.hProcess, INFINITE);
+
+	// Close process and thread handles. 
+	CloseHandle(pi.hProcess);
+	CloseHandle(pi.hThread);
+
+	// closing the pipes to really close the porcess
+	CloseHandle(InputPipeReadEnd);
+	CloseHandle(OutputPipeWriteEnd);
+	cout << "closed proc" << endl;
+}
 
 boolean CreatePowerShell() {
 
@@ -49,7 +65,7 @@ boolean CreatePowerShell() {
 		TRUE,          // Set handle inheritance to FALSE
 		0,              // No creation flags
 		NULL,           // Use parent's environment block
-		const_cast<LPWSTR>(Dircoty.c_str()),           // Use parent's starting directory 
+		NULL,           // Use parent's starting directory  const_cast<LPWSTR>(Dircoty.c_str()) 
 		&si,            // Pointer to STARTUPINFO structure
 		&pi)           // Pointer to PROCESS_INFORMATION structure
 		)
@@ -86,31 +102,32 @@ boolean ReadOutputPowershell() {
 	DWORD bytesRead = 0;
 	//char output[4096] = { 0 };
 	//size_t outputLength = 0;
-	DWORD avil = 0;
+	DWORD Avlible_bytes = 0;
 
 	Sleep(300);
-
-	while ((PeekNamedPipe(OutputPipeReadEnd, NULL, 0, NULL, &avil, NULL)) && avil > 0) {
-		while (avil != 0) {
-			if (!ReadFile(OutputPipeReadEnd, buffer, sizeof(buffer) - 1, &bytesRead, NULL)) {
+ while ((PeekNamedPipe(OutputPipeReadEnd, NULL, 0, NULL, &Avlible_bytes, NULL)) && Avlible_bytes > 0) {
+		while (Avlible_bytes != 0) {
+			if (!ReadFile(OutputPipeReadEnd, buffer, min(sizeof(buffer) - 1, Avlible_bytes), &bytesRead, NULL)) {
 				cout << "read file isnt working" << endl;
 				return false;
 			}
 			buffer[bytesRead] = '\0';
 			cout << buffer;
-			avil = avil - bytesRead;
+			Avlible_bytes = Avlible_bytes - bytesRead;
 		}
+		Sleep(300);
 	}
-	if (avil == 0) {
+	if (Avlible_bytes == 0) {
+		cout << "end reading output succsefully" << endl;
 		return true;
 	}
-
+	cout << "end output not really succsefully" << endl;
 	return false;
 }
 
 boolean WriteToPoweShell(string Commend, DWORD* NumberOfBytesWritten) {
 	bool isSucces = false;
-	 
+
 	Commend += "\n";
 	isSucces = WriteFile(
 
@@ -131,75 +148,93 @@ boolean WriteToPoweShell(string Commend, DWORD* NumberOfBytesWritten) {
 	return true;
 }
 
-void _tmain(int argc, TCHAR* argv[])
-{
+boolean AddToReg() {
+	//HKEY hKey;
+	//LPCWSTR lpSubKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+	//LPCWSTR lpValueName = L"MyApp";
+	//LPCWSTR lpValue = L"C:\\wart.exe"; // Replace with the path to your "wart.exe" executable
 
-	//setup info
-	DWORD NumberOfBytesWritten;
-	ZeroMemory(&NumberOfBytesWritten, sizeof(DWORD));
-	//end of setup info
-
-
-	//create the pipes
-	if (!CreatePipesForInProcess()) {
-		cout << "faild to creat pipes" + GetLastError() << endl;
-		return;
-	}
-	else
-	{
-		cout << "pipes are working" << endl;
-	}
-	// end creation of pies
-
-
-	//creating the child process
-	if (!CreatePowerShell()) {
-		cout << "shit this isnt working" << endl;
-		return;
-	}
-	else {
-		cout << "powershell proccess is up" << endl;
-	}
-	cout << "enter the commend or type exit! to quit" << endl;
-	//end of the child process creation
-
-
-	//loop for I/O
-	string UserInput;
-	if (!ReadOutputPowershell()) {
-		cout << "reading isnt workign" << endl;
-	}
-	for (;;) {
-		getline(cin, UserInput);
-		if (UserInput == "exit!") {
-			cout << "beyyyyyy my man" << endl;
-			break;
-		}
-		cout << "sending to the powershell " + UserInput << endl;
-		if (!WriteToPoweShell(UserInput, &NumberOfBytesWritten)) {
-			cout << "problem sending" + GetLastError() << endl;
-			break;
-		}
-		if (!ReadOutputPowershell()) {
-			cout << "reading isnt workign" << endl;
-			break;
-		}
-	}
-	cout << "out loop" << endl;
-
-
-	//closing precudersces
-
-	// Wait until child process exits.
-	WaitForSingleObject(pi.hProcess, INFINITE);
-
-	// Close process and thread handles. 
-	CloseHandle(pi.hProcess);
-	CloseHandle(pi.hThread);
-
-	// closing the pipes to really close the porcess
-	CloseHandle(InputPipeReadEnd);
-	CloseHandle(OutputPipeWriteEnd);
+	//// Open the registry key
+	//LONG result = RegOpenKeyEx(HKEY_CURRENT_USER, lpSubKey, 0, KEY_SET_VALUE, &hKey);
+	//if (result != ERROR_SUCCESS) {
+	//	cout << "Failed to open registry key. Error code: " << result << endl;
+	//	return false;
+	//}
+	//return true;
+	return true;
 }
+
+boolean IsInReg() {
+	return true;
+}
+
+
+	void _tmain(int argc, TCHAR * argv[])
+	{
+
+		//setup info
+		DWORD NumberOfBytesWritten;
+		ZeroMemory(&NumberOfBytesWritten, sizeof(DWORD));
+		//end of setup info
+
+
+		//create the pipes
+		if (!CreatePipesForInProcess()) {
+			cout << "faild to creat pipes" + GetLastError() << endl;
+			return;
+		}
+		else
+		{
+			cout << "pipes are working" << endl;
+		}
+		// end creation of pies
+
+
+		//creating the child process
+		if (!CreatePowerShell()) {
+			cout << "creating powershell isnt workign" << endl;
+			return;
+		}
+		//end of the child process creation
+
+
+		//loop for I/O
+		string UserInput;
+		if (!ReadOutputPowershell()) {
+			cout << "reading output problem" << endl;
+			ClosingPorgram();
+		}
+		for (;;) {
+			getline(cin, UserInput);
+			if (UserInput == "exit!") {
+				cout << "beyyyyyy my man" << endl;
+				ClosingPorgram();
+			}
+			cout << "sending to the powershell " + UserInput << endl;
+			if (!WriteToPoweShell(UserInput, &NumberOfBytesWritten)) {
+				cout << "problem sending" + GetLastError() << endl;
+				ClosingPorgram();
+			}
+			if (!ReadOutputPowershell()) {
+				cout << "reading isnt workign" << endl;
+				ClosingPorgram();
+			}
+		}
+		cout << "out loop" << endl;
+		ClosingPorgram();
+
+		////closing precudersces
+
+		//// Wait until child process exits.
+		//WaitForSingleObject(pi.hProcess, INFINITE);
+
+		// Close process and thread handles. 
+		//CloseHandle(pi.hProcess);
+		//CloseHandle(pi.hThread);
+
+		//// closing the pipes to really close the porcess
+		//CloseHandle(InputPipeReadEnd);
+		//CloseHandle(OutputPipeWriteEnd);
+	}
 
 
